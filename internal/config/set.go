@@ -26,6 +26,15 @@ func SetString(path, section, key, value string) error {
 	return setScalar(path, section, key, &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: value})
 }
 
+// SetStrings is SetBool for a list, written on one line ([a, b]); section "" puts it at the top level.
+func SetStrings(path, section, key string, values []string) error {
+	list := &yaml.Node{Kind: yaml.SequenceNode, Tag: "!!seq", Style: yaml.FlowStyle}
+	for _, v := range values {
+		list.Content = append(list.Content, &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: v})
+	}
+	return setScalar(path, section, key, list)
+}
+
 func setScalar(path, section, key string, val *yaml.Node) error {
 	data, err := os.ReadFile(path)
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
@@ -41,9 +50,13 @@ func setScalar(path, section, key string, val *yaml.Node) error {
 	if doc.Kind == 0 {
 		doc = yaml.Node{Kind: yaml.DocumentNode, Content: []*yaml.Node{{Kind: yaml.MappingNode}}}
 	}
-	sec, err := mapping(doc.Content[0], section)
-	if err != nil {
-		return err
+	sec := doc.Content[0]
+	if section != "" {
+		if sec, err = mapping(sec, section); err != nil {
+			return err
+		}
+	} else if sec.Kind != yaml.MappingNode {
+		return errors.New("config.yaml isn't a list of settings")
 	}
 	if i := keyIndex(sec, key); i >= 0 {
 		val.HeadComment, val.LineComment = sec.Content[i+1].HeadComment, sec.Content[i+1].LineComment

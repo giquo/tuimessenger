@@ -25,7 +25,7 @@ func (a *App) ReconnectUnhealthy(ctx context.Context) []string {
 		return nil
 	}
 	var names []string
-	for _, br := range a.bridges {
+	for _, br := range a.allBridges() {
 		if !needsReconnect(br) {
 			continue
 		}

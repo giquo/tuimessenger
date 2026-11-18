@@ -62,6 +62,15 @@ func (c *Config) wanted() []string {
 	return DefaultNetworks
 }
 
+// WithNetwork is the networks to run (listed, or by default) plus name, for turning a network on.
+func (c *Config) WithNetwork(name string) []string {
+	wanted := slices.Clone(c.wanted())
+	if !slices.Contains(wanted, name) {
+		wanted = append(wanted, name)
+	}
+	return wanted
+}
+
 // WantsTelegram reports whether Telegram is one of the networks to run (listed, or by default).
 func (c *Config) WantsTelegram() bool {
 	return slices.Contains(c.wanted(), "telegram")

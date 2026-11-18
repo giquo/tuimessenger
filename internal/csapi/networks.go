@@ -43,12 +43,30 @@ type NetworkLogin struct {
 // SetupTelegramKeys means Telegram needs the user's own app keys before it can start.
 const SetupTelegramKeys = "telegram_api_keys"
 
+// SetupTurnOn means the network is compiled in but not running; clients turn it on with POST …/{network}/enable.
+const SetupTurnOn = "turn_on"
+
+// ErrUnknownNetwork means there's no such network in this build.
+var ErrUnknownNetwork = errors.New("unknown network")
+
 type respNetworks struct {
 	Networks []Network `json:"networks"`
 }
 
 func (s *Server) networks(r *http.Request) (any, error) {
 	return &respNetworks{Networks: s.Bridges.Networks(r.Context())}, nil
+}
+
+// enableNetwork turns a network on and returns once it runs, so the client can log in right away.
+func (s *Server) enableNetwork(r *http.Request) (any, error) {
+	network := r.PathValue("network")
+	if err := s.Bridges.EnableNetwork(r.Context(), network); errors.Is(err, ErrUnknownNetwork) {
+		return nil, mautrix.MNotFound.WithMessage(err.Error())
+	} else if err != nil {
+		return nil, err
+	}
+	s.Log.Info().Str("network", network).Msg("Client turned a network on")
+	return struct{}{}, nil
 }
 
 // setNetworkSettings takes {"include_channels": false}: each key is saved to config.yaml and applied.
