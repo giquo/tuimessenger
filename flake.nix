@@ -18,7 +18,7 @@
           pname = "tuimessenger";
           inherit version;
           src = self; # tracked files only
-          vendorHash = "sha256-k5XEpqLOBgnVbiGnepMc/5nP6wuwe0GMs7XlJJp+V/U="; # scripts/update-vendor-hash.sh after go.mod/go.sum change
+          vendorHash = "sha256-2soWEs/zF+sItNryfhfivBs2/4VDgwh0qWqu9F+OMts="; # scripts/update-vendor-hash.sh after go.mod/go.sum change
           subPackages = [ "cmd/tuimessenger" ];
           # goolm: pure-Go olm; sqlite_fts5: full-text search in the client database. cgo builds sqlite and webp.
           tags = [ "goolm" "sqlite_fts5" ];

@@ -12,6 +12,7 @@ type bridgeIconSpec struct {
 // Nerd Font glyphs, verified present in JetBrainsMono Nerd Font Mono. The Mono
 // variant renders every glyph single-width, so the icon column stays aligned.
 // Colors are the networks' brand colors, which read well on a dark background.
+// Exception: Mattermost's glyph (nf-dev-mattermost) needs Nerd Fonts 3.5.1+; older fonts show a placeholder box.
 var bridgeIcons = map[string]bridgeIconSpec{
 	"whatsapp":      {"\uf232", tcell.NewHexColor(0x25d366)},
 	"telegram":      {"\uf2c6", tcell.NewHexColor(0x2aabee)},
@@ -19,6 +20,7 @@ var bridgeIcons = map[string]bridgeIconSpec{
 	"slackgo":       {"\uf198", tcell.NewHexColor(0xe01e5a)},
 	"instagram":     {"\uf16d", tcell.NewHexColor(0xe4405f)},
 	"instagramgo":   {"\uf16d", tcell.NewHexColor(0xe4405f)},
+	"mattermost":    {"\ue927", tcell.NewHexColor(0x1c7cf0)},
 	"signal":        {"\U000f0b65", tcell.NewHexColor(0x3a76f0)},
 	"discord":       {"\U000f066f", tcell.NewHexColor(0x5865f2)},
 	"discordgo":     {"\U000f066f", tcell.NewHexColor(0x5865f2)},

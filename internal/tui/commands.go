@@ -268,11 +268,23 @@ var leaveNetworks = map[string]string{
 	"instagram": "Instagram", "instagramgo": "Instagram",
 }
 
+// localLeaveNetworks names the networks whose bridge can't leave a chat: /leave only removes it here.
+var localLeaveNetworks = map[string]string{
+	"mattermost": "Mattermost",
+}
+
 // confirmLeave asks before /leave: leaving here leaves the chat on the network too, which others can see.
 func (view *RoomView) confirmLeave() bool {
 	name := ptr.Val(view.Room.Meta.Current().Name)
 	if name == "" {
 		name = "this chat"
+	}
+	if network, ok := localLeaveNetworks[view.Room.BridgeID()]; ok {
+		return view.parent.Confirm("Leave this chat?", []string{
+			"Remove " + runewidth.Truncate(name, 36, "…") + " from here?",
+			"You stay in it on " + network + ": leaving",
+			"there isn't supported yet.",
+		}, "Leave")
 	}
 	network := leaveNetworks[view.Room.BridgeID()]
 	if network == "" {

@@ -54,6 +54,7 @@ var sourceBundles = map[string]string{
 	"slackgo":     "Slack",
 	"instagram":   "Instagram",
 	"instagramgo": "Instagram",
+	"mattermost":  "Mattermost",
 }
 
 // notifierFor returns the terminal-notifier binary to use for a bridge: its

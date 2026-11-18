@@ -52,6 +52,7 @@ require (
 	github.com/armfazh/tozan-ecc v0.1.3 // indirect
 	github.com/beeper/argo-go v1.1.2 // indirect
 	github.com/beeper/poly1305 v0.0.0-20250815183548-d4eede7bbf3c // indirect
+	github.com/bostrot/mautrix-mattermost v0.0.0-20261116172054-2182acd09917
 	github.com/bytemare/cryptotools v0.0.0-20210309005813-f9985b05742f // indirect
 	github.com/bytemare/opaque v0.0.0-20210310201842-16a10d180656 // indirect
 	github.com/bytemare/voprf v0.0.0-20210221170502-f0af88d24d16 // indirect
@@ -70,13 +71,14 @@ require (
 	github.com/google/flatbuffers v25.12.19+incompatible // indirect
 	github.com/google/go-querystring v1.2.0 // indirect
 	github.com/google/uuid v1.6.0 // indirect
-	github.com/gorilla/websocket v1.5.0 // indirect
+	github.com/gorilla/websocket v1.5.3 // indirect
 	github.com/gotd/ige v0.2.2 // indirect
 	github.com/gotd/neo v0.1.5 // indirect
 	github.com/gtank/ristretto255 v0.2.0 // indirect
 	github.com/icholy/digest v1.2.0 // indirect
 	github.com/imroc/req/v3 v3.56.0 // indirect
 	github.com/klauspost/compress v1.20.0 // indirect
+	github.com/kyokomi/emoji/v2 v2.2.13 // indirect
 	github.com/lib/pq v1.12.3 // indirect
 	github.com/mattn/go-colorable v0.1.15 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect

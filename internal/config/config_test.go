@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -128,5 +129,37 @@ func TestTelegramWithoutKeysNeverBlocks(t *testing.T) {
 	}
 	if got := strings.Join(cfg.Runnable([]string{"telegram", "dummy"}), ","); got != "dummy" {
 		t.Errorf("-network telegram,dummy without keys: %q", got)
+	}
+}
+
+// Turning a network on writes the whole list at the top level, keeping the rest of the file.
+func TestSetNetworksList(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	orig := "# tuimessenger settings.\nslack:\n  include_channels: false\n"
+	if err := os.WriteFile(path, []byte(orig), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wanted := cfg.WithNetwork("mattermost")
+	if want := append(slices.Clone(DefaultNetworks), "mattermost"); !slices.Equal(wanted, want) {
+		t.Errorf("WithNetwork = %v, want %v", wanted, want)
+	}
+	if err = SetStrings(path, "", "networks", wanted); err != nil {
+		t.Fatal(err)
+	}
+	data, _ := os.ReadFile(path)
+	for _, want := range []string{"# tuimessenger settings.", "include_channels: false", "networks: [whatsapp, telegram, slack, instagram, mattermost]"} {
+		if !strings.Contains(string(data), want) {
+			t.Errorf("missing %q in:\n%s", want, data)
+		}
+	}
+	if cfg, err = Load(path); err != nil || !slices.Equal(cfg.Networks, wanted) {
+		t.Errorf("read back: %v %v", cfg.Networks, err)
+	}
+	if again := cfg.WithNetwork("slack"); !slices.Equal(again, wanted) {
+		t.Errorf("a listed network isn't added twice: %v", again)
 	}
 }

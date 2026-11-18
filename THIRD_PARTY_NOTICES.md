@@ -24,14 +24,15 @@ binaries in a form other than Go source modules (Go modules keep their own licen
 ## Network notification icons
 
 - What: `assets/notifiers/*.icns`, embedded in macOS builds and installed as `WhatsApp.app`, `Telegram.app`,
-  `Slack.app` and `Instagram.app`, so each network's notifications show its icon.
-- Made by: the WhatsApp, Telegram, Slack and Instagram glyphs of [Font Awesome Free](https://fontawesome.com) (as
-  included in [Nerd Fonts](https://www.nerdfonts.com)), recoloured and placed on tuimessenger's dark tile.
+  `Slack.app`, `Instagram.app` and `Mattermost.app`, so each network's notifications show its icon.
+- Made by: the WhatsApp, Telegram, Slack and Instagram glyphs of [Font Awesome Free](https://fontawesome.com), and
+  the Mattermost glyph of [Devicon](https://github.com/devicons/devicon) 2.17.0 (`nf-dev-mattermost`), as included in
+  [Nerd Fonts](https://www.nerdfonts.com) 3.5.1, recoloured and placed on tuimessenger's dark tile.
 - License: Font Awesome Free icons are under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)
-  (© Fonticons, Inc.); these are modified versions.
+  (© Fonticons, Inc.); Devicon is under the MIT license (© 2015 konpa). These are modified versions.
 - The logos are trademarks of their owners (WhatsApp and Instagram: Meta Platforms, Inc.; Telegram: Telegram FZ-LLC;
-  Slack: Slack Technologies, LLC). They're used only to show which network a notification is from; tuimessenger
-  isn't affiliated with or endorsed by them.
+  Slack: Slack Technologies, LLC; Mattermost: Mattermost, Inc.). They're used only to show which network a
+  notification is from; tuimessenger isn't affiliated with or endorsed by them.
 
 ## opencode themes
 

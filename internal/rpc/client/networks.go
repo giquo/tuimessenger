@@ -29,6 +29,9 @@ type NetworkLogin struct {
 // SetupTelegramKeys: Telegram needs the user's own app keys (my.telegram.org) before it can start.
 const SetupTelegramKeys = "telegram_api_keys"
 
+// SetupTurnOn: the network isn't running yet; EnableNetwork starts it.
+const SetupTurnOn = "turn_on"
+
 // LoginStep is a login in progress and what it needs next.
 type LoginStep struct {
 	LoginID string              `json:"login_id"`
@@ -50,4 +53,6 @@ type NetworkLogins interface {
 	CancelLogin(ctx context.Context, loginID string) error
 	LogoutNetwork(ctx context.Context, network, loginID string) error
 	SetTelegramKeys(ctx context.Context, apiID int, apiHash string) error
+	// EnableNetwork starts a network that isn't running (Setup SetupTurnOn) and returns once it runs.
+	EnableNetwork(ctx context.Context, network string) error
 }
