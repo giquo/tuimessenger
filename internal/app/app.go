@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"sync"
 	"time"
 
@@ -35,18 +36,23 @@ type Options struct {
 	Networks   []string
 	ServerName string
 	Owner      id.UserID
-	// OfferTelegramSetup: Telegram is wanted but has no app keys yet, so clients offer the form for them.
-	OfferTelegramSetup bool
 }
 
 type App struct {
-	opts    Options
-	Store   *store.Store
-	API     *csapi.Server
-	bridges []*bridgev2.Bridge
-	dbs     []*dbutil.Database
+	opts  Options
+	Store *store.Store
+	API   *csapi.Server
+
+	// bridgesLock guards bridges, dbs and afterStart: a network can be turned on while everything else runs.
+	bridgesLock sync.RWMutex
+	bridges     []*bridgev2.Bridge
+	dbs         []*dbutil.Database
 	// afterStart holds each network's optional background step, run once its bridge has started.
 	afterStart map[*bridgev2.Bridge]func(context.Context, *bridgev2.Bridge, *bridgev2.User)
+	enableLock sync.Mutex // one network turned on at a time
+
+	media  *media.Store // shared by every network, kept for networks turned on later
+	typing *typing.Tracker
 
 	mediaCache *media.Cache
 	downloads  singleflight.Group // one download per file, even if it's opened twice at once
@@ -94,8 +100,9 @@ func New(ctx context.Context, opts Options) (*App, error) {
 		return nil, err
 	}
 	typ := typing.New()
+	a.media, a.typing = med, typ
 	for _, name := range opts.Networks {
-		if err = a.addBridge(name, med, typ); err != nil {
+		if _, err = a.addBridge(name); err != nil {
 			a.Close()
 			return nil, fmt.Errorf("%s: %w", name, err)
 		}
@@ -107,22 +114,22 @@ func New(ctx context.Context, opts Options) (*App, error) {
 	return a, nil
 }
 
-func (a *App) addBridge(name string, med *media.Store, typ *typing.Tracker) error {
+// addBridge creates a network's bridge (not started yet) and adds it to the running ones.
+func (a *App) addBridge(name string) (*bridgev2.Bridge, error) {
 	network, err := bridges.New(name, a.opts.Config)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	dir := filepath.Join(a.opts.DataDir, name)
 	if err = os.MkdirAll(dir, 0o700); err != nil {
-		return err
+		return nil, err
 	}
 	log := a.opts.Log.With().Str("network", name).Logger()
 	db, err := openBridgeDB(filepath.Join(dir, "bridge.db"), log)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	a.dbs = append(a.dbs, db)
-	conn := matrixconn.New(log, a.Store, med, typ, name, a.opts.ServerName, a.opts.Owner)
+	conn := matrixconn.New(log, a.Store, a.media, a.typing, name, a.opts.ServerName, a.opts.Owner)
 	conn.FetchDirect = func(ctx context.Context, fileID string) (*os.File, error) {
 		file, _, err := a.FetchMedia(ctx, fileID, nil)
 		return file, err
@@ -133,17 +140,46 @@ func (a *App) addBridge(name string, med *media.Store, typ *typing.Tracker) erro
 	if dmn, ok := network.Connector.(bridgev2.DirectMediableNetwork); ok {
 		dmn.SetUseDirectMedia()
 	}
+	a.bridgesLock.Lock()
+	a.dbs = append(a.dbs, db)
 	a.bridges = append(a.bridges, br)
 	if network.AfterStart != nil {
 		a.afterStart[br] = network.AfterStart
 	}
+	a.bridgesLock.Unlock()
 	if len(network.Settings) > 0 {
+		a.settingsLock.Lock()
 		if a.settings == nil {
 			a.settings = make(map[string]map[string]*bridges.Setting)
 		}
 		a.settings[name] = network.Settings
+		a.settingsLock.Unlock()
 	}
-	return nil
+	return br, nil
+}
+
+// removeBridge undoes addBridge for a network that failed to start.
+func (a *App) removeBridge(br *bridgev2.Bridge) {
+	a.bridgesLock.Lock()
+	if i := slices.Index(a.bridges, br); i >= 0 {
+		a.bridges = slices.Delete(a.bridges, i, i+1)
+		if db := a.dbs[i]; db != nil {
+			_ = db.Close()
+		}
+		a.dbs = slices.Delete(a.dbs, i, i+1)
+	}
+	delete(a.afterStart, br)
+	a.bridgesLock.Unlock()
+	a.settingsLock.Lock()
+	delete(a.settings, string(br.ID))
+	a.settingsLock.Unlock()
+}
+
+// allBridges is a snapshot of the running networks, safe to loop over while one is being turned on.
+func (a *App) allBridges() []*bridgev2.Bridge {
+	a.bridgesLock.RLock()
+	defer a.bridgesLock.RUnlock()
+	return slices.Clone(a.bridges)
 }
 
 func openBridgeDB(path string, log zerolog.Logger) (*dbutil.Database, error) {
@@ -163,14 +199,25 @@ func openBridgeDB(path string, log zerolog.Logger) (*dbutil.Database, error) {
 }
 
 func (a *App) Start(ctx context.Context) error {
-	for _, br := range a.bridges {
-		if err := br.Start(ctx); err != nil {
-			return fmt.Errorf("failed to start %s: %w", br.ID, err)
+	for _, br := range a.allBridges() {
+		if err := a.startBridge(ctx, br); err != nil {
+			return err
 		}
-		if hook := a.afterStart[br]; hook != nil {
-			if owner, err := br.GetUserByMXID(ctx, a.opts.Owner); err == nil {
-				go hook(br.BackgroundCtx, br, owner)
-			}
+	}
+	return nil
+}
+
+// startBridge starts one network and its optional background step.
+func (a *App) startBridge(ctx context.Context, br *bridgev2.Bridge) error {
+	if err := br.Start(ctx); err != nil {
+		return fmt.Errorf("failed to start %s: %w", br.ID, err)
+	}
+	a.bridgesLock.RLock()
+	hook := a.afterStart[br]
+	a.bridgesLock.RUnlock()
+	if hook != nil {
+		if owner, err := br.GetUserByMXID(ctx, a.opts.Owner); err == nil {
+			go hook(br.BackgroundCtx, br, owner)
 		}
 	}
 	return nil
@@ -178,14 +225,17 @@ func (a *App) Start(ctx context.Context) error {
 
 // Stop stops the bridges and closes the databases.
 func (a *App) Stop() {
-	for _, br := range a.bridges {
+	for _, br := range a.allBridges() {
 		br.StopWithTimeout(5 * time.Second)
 	}
 	a.Close()
 }
 
 func (a *App) Close() {
-	for _, db := range a.dbs {
+	a.bridgesLock.RLock()
+	dbs := slices.Clone(a.dbs)
+	a.bridgesLock.RUnlock()
+	for _, db := range dbs {
 		_ = db.Close()
 	}
 	if a.Store != nil {
@@ -195,7 +245,7 @@ func (a *App) Close() {
 
 // Bridge returns the bridge for a network, e.g. to log in to it.
 func (a *App) Bridge(name string) *bridgev2.Bridge {
-	for _, br := range a.bridges {
+	for _, br := range a.allBridges() {
 		if string(br.ID) == name {
 			return br
 		}
@@ -239,7 +289,7 @@ func (a *App) portalFor(ctx context.Context, roomID id.RoomID) (*bridgev2.Bridge
 	a.roomLock.Lock()
 	known := a.roomBridges[roomID]
 	a.roomLock.Unlock()
-	candidates := a.bridges
+	candidates := a.allBridges()
 	if known != nil {
 		candidates = []*bridgev2.Bridge{known}
 	}
@@ -267,7 +317,7 @@ func (a *App) SetViewing(ctx context.Context, roomID id.RoomID) {
 			zerolog.Ctx(ctx).Debug().Err(err).Msg("Viewing a room that isn't a chat")
 		}
 	}
-	for _, br := range a.bridges {
+	for _, br := range a.allBridges() {
 		user, err := br.GetUserByMXID(ctx, a.opts.Owner)
 		if err != nil {
 			continue

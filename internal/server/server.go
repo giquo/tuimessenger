@@ -87,7 +87,6 @@ func Open(ctx context.Context, opts Options) (*Backend, error) {
 	}
 	a, err := app.New(ctx, app.Options{
 		Log: opts.Log, Config: cfg, DataDir: opts.DataDir, Networks: networks, ServerName: ServerName, Owner: Owner,
-		OfferTelegramSetup: wantsTelegram && !cfg.HasTelegramKeys(),
 	})
 	if err != nil {
 		_ = lock.Close()

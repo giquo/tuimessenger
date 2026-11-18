@@ -5,7 +5,7 @@
 <h1 align="center">tuimessenger</h1>
 
 <p align="center">
-All your networks in one terminal app: WhatsApp, Telegram, Slack and Instagram.
+All your networks in one terminal app: WhatsApp, Telegram, Slack, Instagram and Mattermost (beta).
 </p>
 
 https://github.com/user-attachments/assets/ae873a26-9749-4212-a7ee-1de875292123
@@ -57,7 +57,8 @@ nix profile install github:whyyor/tuimessenger    # install it
 **From source:** see [Building](#building).
 
 Linux binaries need glibc 2.35 or newer (Ubuntu 22.04, Debian 12, Raspberry Pi OS and later). A
-[Nerd Font](https://www.nerdfonts.com) in your terminal makes the icons show up; [yazi](https://yazi-rs.github.io)
+[Nerd Font](https://www.nerdfonts.com) in your terminal makes the icons show up (the Mattermost icon needs Nerd Fonts
+3.5.1 or newer); [yazi](https://yazi-rs.github.io)
 is used as the file picker when it's installed.
 
 ## Quick start
@@ -69,7 +70,8 @@ is used as the file picker when it's installed.
    Chrome, Chromium, Brave, Edge or Helium (`TUIMESSENGER_BROWSER` picks another) and closes it when you're done;
    without one, you paste the cookies instead. For Telegram, first create your keys: log in at
    [my.telegram.org](https://my.telegram.org) → API development tools → create an app (any name) → paste `api_id` and
-   `api_hash` into the Networks panel.
+   `api_hash` into the Networks panel. **Mattermost** (beta) is off until you choose it there: Enter turns it on, then
+   log in with your server URL and a personal access token, email and password, or SSO in a browser window.
 3. **Chat:** Ctrl+k jumps to any chat, Enter sends, Ctrl+p shows every command and key.
 
 ## Keep the backend running

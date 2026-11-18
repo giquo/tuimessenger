@@ -66,6 +66,11 @@ func (b *Backend) LogoutNetwork(ctx context.Context, network, loginID string) er
 	return err
 }
 
+func (b *Backend) EnableNetwork(ctx context.Context, network string) error {
+	_, err := b.hc.Client.MakeRequest(noRetry(ctx), http.MethodPost, b.unstableURL("networks", network, "enable"), struct{}{}, nil)
+	return err
+}
+
 func (b *Backend) SetTelegramKeys(ctx context.Context, apiID int, apiHash string) error {
 	body := map[string]any{"api_id": apiID, "api_hash": apiHash}
 	_, err := b.hc.Client.MakeRequest(noRetry(ctx), http.MethodPut, b.unstableURL("networks", "telegram", "keys"), body, nil)

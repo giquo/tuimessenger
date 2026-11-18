@@ -48,6 +48,8 @@ type Bridges interface {
 	Logout(ctx context.Context, network string, loginID networkid.UserLoginID) error
 	// SetTelegramKeys saves Telegram's app keys to config.yaml; Telegram starts with the next start.
 	SetTelegramKeys(ctx context.Context, apiID int, apiHash string) error
+	// EnableNetwork starts a network that isn't running and saves it to config.yaml; ErrUnknownNetwork if there's none.
+	EnableNetwork(ctx context.Context, network string) error
 }
 
 type Options struct {
@@ -149,6 +151,7 @@ func (s *Server) routes() {
 	s.route("POST "+reconnectPath, true, s.reconnect)
 	s.route("GET "+networksPath, true, s.networks)
 	s.route("PUT "+networksPath+"/{network}/settings", true, s.setNetworkSettings)
+	s.route("POST "+networksPath+"/{network}/enable", true, s.enableNetwork)
 	s.route("POST "+networksPath+"/{network}/login/{flowID}", true, s.startLogin)
 	s.route("POST "+networksPath+"/{network}/logout/{loginID}", true, s.networkLogout)
 	s.route("PUT "+networksPath+"/telegram/keys", true, s.setTelegramKeys)
