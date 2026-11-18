@@ -66,15 +66,16 @@ func (a *App) EnableNetwork(ctx context.Context, name string) error {
 	}
 	// Starting can take a few seconds (database setup); a client that stops waiting mustn't cut it off halfway.
 	ctx = context.WithoutCancel(ctx)
-	br, err := a.addBridge(name)
+	nb, err := a.newBridge(name)
 	if err != nil {
 		return err
 	}
-	if err = a.startBridge(ctx, br); err != nil {
-		br.StopWithTimeout(5 * time.Second)
-		a.removeBridge(br)
+	if err = a.startBridge(ctx, nb.br, nb.afterStart); err != nil {
+		nb.br.StopWithTimeout(5 * time.Second)
+		_ = nb.db.Close()
 		return err
 	}
+	a.publish(nb) // only now: until it has started, nothing else may touch its database
 	// Saved only once it runs: a network in config.yaml that can't start would stop the next start altogether.
 	wanted := a.opts.Config.WithNetwork(name)
 	if err = config.SetStrings(filepath.Join(a.opts.DataDir, "config.yaml"), "", "networks", wanted); err != nil {
