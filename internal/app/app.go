@@ -102,10 +102,12 @@ func New(ctx context.Context, opts Options) (*App, error) {
 	typ := typing.New()
 	a.media, a.typing = med, typ
 	for _, name := range opts.Networks {
-		if _, err = a.addBridge(name); err != nil {
+		nb, err := a.newBridge(name)
+		if err != nil {
 			a.Close()
 			return nil, fmt.Errorf("%s: %w", name, err)
 		}
+		a.publish(nb)
 	}
 	a.API = csapi.New(csapi.Options{
 		Log: opts.Log.With().Str("component", "api").Logger(), Store: a.Store, Media: med, Typing: typ,
@@ -114,8 +116,16 @@ func New(ctx context.Context, opts Options) (*App, error) {
 	return a, nil
 }
 
-// addBridge creates a network's bridge (not started yet) and adds it to the running ones.
-func (a *App) addBridge(name string) (*bridgev2.Bridge, error) {
+// netBridge is a network's bridge with what belongs to it, built but not yet visible to the rest of the app.
+type netBridge struct {
+	br         *bridgev2.Bridge
+	db         *dbutil.Database
+	afterStart func(context.Context, *bridgev2.Bridge, *bridgev2.User)
+	settings   map[string]*bridges.Setting
+}
+
+// newBridge builds a network's bridge without starting it or adding it to the running ones (publish does that).
+func (a *App) newBridge(name string) (*netBridge, error) {
 	network, err := bridges.New(name, a.opts.Config)
 	if err != nil {
 		return nil, err
@@ -140,39 +150,27 @@ func (a *App) addBridge(name string) (*bridgev2.Bridge, error) {
 	if dmn, ok := network.Connector.(bridgev2.DirectMediableNetwork); ok {
 		dmn.SetUseDirectMedia()
 	}
+	return &netBridge{br: br, db: db, afterStart: network.AfterStart, settings: network.Settings}, nil
+}
+
+// publish adds a bridge to the running networks. A network turned on later is published only once it has started:
+// until then other code (opening a chat, the networks list) would use its database while it's still being set up.
+func (a *App) publish(nb *netBridge) {
 	a.bridgesLock.Lock()
-	a.dbs = append(a.dbs, db)
-	a.bridges = append(a.bridges, br)
-	if network.AfterStart != nil {
-		a.afterStart[br] = network.AfterStart
+	a.dbs = append(a.dbs, nb.db)
+	a.bridges = append(a.bridges, nb.br)
+	if nb.afterStart != nil {
+		a.afterStart[nb.br] = nb.afterStart
 	}
 	a.bridgesLock.Unlock()
-	if len(network.Settings) > 0 {
+	if len(nb.settings) > 0 {
 		a.settingsLock.Lock()
 		if a.settings == nil {
 			a.settings = make(map[string]map[string]*bridges.Setting)
 		}
-		a.settings[name] = network.Settings
+		a.settings[string(nb.br.ID)] = nb.settings
 		a.settingsLock.Unlock()
 	}
-	return br, nil
-}
-
-// removeBridge undoes addBridge for a network that failed to start.
-func (a *App) removeBridge(br *bridgev2.Bridge) {
-	a.bridgesLock.Lock()
-	if i := slices.Index(a.bridges, br); i >= 0 {
-		a.bridges = slices.Delete(a.bridges, i, i+1)
-		if db := a.dbs[i]; db != nil {
-			_ = db.Close()
-		}
-		a.dbs = slices.Delete(a.dbs, i, i+1)
-	}
-	delete(a.afterStart, br)
-	a.bridgesLock.Unlock()
-	a.settingsLock.Lock()
-	delete(a.settings, string(br.ID))
-	a.settingsLock.Unlock()
 }
 
 // allBridges is a snapshot of the running networks, safe to loop over while one is being turned on.
@@ -200,7 +198,10 @@ func openBridgeDB(path string, log zerolog.Logger) (*dbutil.Database, error) {
 
 func (a *App) Start(ctx context.Context) error {
 	for _, br := range a.allBridges() {
-		if err := a.startBridge(ctx, br); err != nil {
+		a.bridgesLock.RLock()
+		hook := a.afterStart[br]
+		a.bridgesLock.RUnlock()
+		if err := a.startBridge(ctx, br, hook); err != nil {
 			return err
 		}
 	}
@@ -208,13 +209,10 @@ func (a *App) Start(ctx context.Context) error {
 }
 
 // startBridge starts one network and its optional background step.
-func (a *App) startBridge(ctx context.Context, br *bridgev2.Bridge) error {
+func (a *App) startBridge(ctx context.Context, br *bridgev2.Bridge, hook func(context.Context, *bridgev2.Bridge, *bridgev2.User)) error {
 	if err := br.Start(ctx); err != nil {
 		return fmt.Errorf("failed to start %s: %w", br.ID, err)
 	}
-	a.bridgesLock.RLock()
-	hook := a.afterStart[br]
-	a.bridgesLock.RUnlock()
 	if hook != nil {
 		if owner, err := br.GetUserByMXID(ctx, a.opts.Owner); err == nil {
 			go hook(br.BackgroundCtx, br, owner)
