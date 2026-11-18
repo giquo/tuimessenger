@@ -1,6 +1,7 @@
 package bridges
 
 import (
+	"slices"
 	"testing"
 
 	instagram "go.mau.fi/mautrix-meta/pkg/igconnector"
@@ -33,5 +34,21 @@ func TestNetworkDefaults(t *testing.T) {
 	igCfg := ig.Connector.(*instagram.IGConnector).Config
 	if igCfg.ThreadBackfill.BatchCount != 0 {
 		t.Errorf("Instagram should sync only the recent chats, like Beeper: %+v", igCfg.ThreadBackfill)
+	}
+}
+
+func TestMattermostNetwork(t *testing.T) {
+	if !slices.Contains(Available(), "mattermost") {
+		t.Fatalf("mattermost isn't registered: %v", Available())
+	}
+	mm, err := New("mattermost", &config.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := mm.Connector.GetName().NetworkID; got != "mattermost" {
+		t.Errorf("NetworkID = %q, want %q", got, "mattermost")
+	}
+	if mm.Config.CommandPrefix != "!mm" {
+		t.Errorf("command prefix = %q, want !mm", mm.Config.CommandPrefix)
 	}
 }

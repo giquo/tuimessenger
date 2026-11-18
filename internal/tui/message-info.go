@@ -43,6 +43,7 @@ var networkNames = map[string]string{
 	"instagramgo": "Instagram", "slack": "Slack", "slackgo": "Slack", "signal": "Signal",
 	"discord": "Discord", "discordgo": "Discord", "facebook": "Messenger", "metago": "Messenger",
 	"linkedin": "LinkedIn", "gmessages": "Google Messages", "imessage": "iMessage", "imessagego": "iMessage",
+	"mattermost": "Mattermost",
 }
 
 func infoTime(t, now time.Time) string {

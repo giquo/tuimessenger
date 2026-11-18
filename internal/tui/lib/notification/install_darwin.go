@@ -35,7 +35,7 @@ type notifierApp struct {
 // notifierApps are tuimessenger.app (for everything else) and one app per network in sourceBundles.
 func notifierApps() []notifierApp {
 	apps := []notifierApp{{appName, assets.IconICNS}}
-	for _, name := range []string{"WhatsApp", "Telegram", "Slack", "Instagram"} {
+	for _, name := range []string{"WhatsApp", "Telegram", "Slack", "Instagram", "Mattermost"} {
 		apps = append(apps, notifierApp{name, assets.NetworkIcon(name)})
 	}
 	return apps
