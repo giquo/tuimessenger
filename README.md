@@ -35,6 +35,13 @@ curl -fsSL https://raw.githubusercontent.com/whyyor/tuimessenger/main/install.sh
 brew install whyyor/tap/tuimessenger
 ```
 
+**Arch Linux** ([AUR](https://aur.archlinux.org/packages/tuimessenger-bin), community-maintained by
+[@Dominiquini](https://github.com/Dominiquini), thank you!):
+
+```sh
+yay -S tuimessenger-bin    # or paru, or any AUR helper
+```
+
 **Download:** grab the archive for your system from [Releases](https://github.com/whyyor/tuimessenger/releases),
 unpack it and put `tuimessenger` somewhere on your `PATH` (e.g. `~/.local/bin`). The binaries aren't signed by Apple,
 so on macOS a browser download is blocked the first time; clear that once with
