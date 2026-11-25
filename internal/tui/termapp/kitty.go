@@ -195,7 +195,7 @@ func legacyKey(key rune, mods int) ([]byte, bool) {
 	shift, alt, ctrl := mods&modShift != 0, mods&modAlt != 0, mods&modCtrl != 0
 	var b []byte
 	switch {
-	case key >= 57348 && key <= 57357:
+	case key >= 57348 && key <= 57357: // Kitty's functional keys: Insert, Delete, Left, Right, Up, Down, PageUp, PageDown, Home, End
 		keys := [...]struct {
 			number string
 			final  byte
