@@ -143,15 +143,15 @@ func TestSetNetworksList(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	wanted := cfg.WithNetwork("mattermost")
-	if want := append(slices.Clone(DefaultNetworks), "mattermost"); !slices.Equal(wanted, want) {
+	wanted := cfg.WithNetwork("signal")
+	if want := append(slices.Clone(DefaultNetworks), "signal"); !slices.Equal(wanted, want) {
 		t.Errorf("WithNetwork = %v, want %v", wanted, want)
 	}
 	if err = SetStrings(path, "", "networks", wanted); err != nil {
 		t.Fatal(err)
 	}
 	data, _ := os.ReadFile(path)
-	for _, want := range []string{"# tuimessenger settings.", "include_channels: false", "networks: [whatsapp, telegram, slack, instagram, mattermost]"} {
+	for _, want := range []string{"# tuimessenger settings.", "include_channels: false", "networks: [whatsapp, telegram, slack, instagram, signal]"} {
 		if !strings.Contains(string(data), want) {
 			t.Errorf("missing %q in:\n%s", want, data)
 		}

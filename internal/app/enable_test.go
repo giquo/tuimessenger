@@ -21,7 +21,7 @@ import (
 func TestEnableNetwork(t *testing.T) {
 	ctx := context.Background()
 	dir := t.TempDir()
-	a, err := New(ctx, Options{Log: zerolog.Nop(), Config: &config.Config{}, DataDir: dir, Networks: []string{"mattermost"},
+	a, err := New(ctx, Options{Log: zerolog.Nop(), Config: &config.Config{}, DataDir: dir, Networks: []string{"slack"},
 		ServerName: "tuimessenger.local", Owner: id.UserID("@you:tuimessenger.local")})
 	if err != nil {
 		t.Fatal(err)
@@ -42,8 +42,8 @@ func TestEnableNetwork(t *testing.T) {
 	if running, s, _ := setup("instagram"); running || s != csapi.SetupTurnOn {
 		t.Errorf("instagram before: running=%v setup=%q, want it offered to turn on", running, s)
 	}
-	if running, _, _ := setup("mattermost"); !running {
-		t.Error("mattermost should be running")
+	if running, _, _ := setup("slack"); !running {
+		t.Error("slack should be running")
 	}
 
 	stop := make(chan struct{})
@@ -62,7 +62,7 @@ func TestEnableNetwork(t *testing.T) {
 			}
 		}
 	}()
-	for _, name := range []string{"instagram", "slack", "whatsapp"} {
+	for _, name := range []string{"instagram", "whatsapp"} {
 		if err = a.EnableNetwork(ctx, name); err != nil {
 			break
 		}

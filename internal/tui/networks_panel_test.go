@@ -31,16 +31,16 @@ type fakeNetworks struct {
 func (f *fakeNetworks) Networks(context.Context) ([]client.Network, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	mattermost := client.Network{Name: "mattermost", Setup: client.SetupTurnOn}
-	if slices.Contains(f.enabled, "mattermost") {
-		mattermost = client.Network{Name: "mattermost", Running: true, Flows: []bridgev2.LoginFlow{{ID: "mm-login-pat", Name: "Token"}}}
+	signal := client.Network{Name: "signal", Setup: client.SetupTurnOn}
+	if slices.Contains(f.enabled, "signal") {
+		signal = client.Network{Name: "signal", Running: true, Flows: []bridgev2.LoginFlow{{ID: "qr", Name: "QR"}}}
 	}
 	return []client.Network{
 		{Name: "whatsapp", Running: true, Flows: []bridgev2.LoginFlow{{ID: "qr", Name: "QR"}, {ID: "phone", Name: "Pairing code"}}},
 		{Name: "telegram", Setup: client.SetupTelegramKeys},
 		{Name: "slack", Running: true, State: "CONNECTED", Flows: []bridgev2.LoginFlow{{ID: "email", Name: "Email"}},
 			Logins: []client.NetworkLogin{{ID: "T1-U1", Name: "Acme - me@acme.test", State: "CONNECTED"}}},
-		mattermost,
+		signal,
 	}, nil
 }
 func (f *fakeNetworks) SetNetworkSetting(context.Context, string, string, bool) error { return nil }
@@ -291,12 +291,12 @@ func TestNetworksTurnOn(t *testing.T) {
 	p.selected = 3
 	p.mu.Unlock()
 	p.OnKeyEvent(keyPress(tcell.KeyEnter))
-	eventually(t, "the Mattermost login to start", func(p *NetworksPanel) bool {
-		return p.state == netStep && p.network.Name == "mattermost"
+	eventually(t, "the Signal login to start", func(p *NetworksPanel) bool {
+		return p.state == netStep && p.network.Name == "signal"
 	}, p)
 	api.mu.Lock()
 	defer api.mu.Unlock()
-	if !slices.Equal(api.enabled, []string{"mattermost"}) {
+	if !slices.Equal(api.enabled, []string{"signal"}) {
 		t.Errorf("enabled %v", api.enabled)
 	}
 }

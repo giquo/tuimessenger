@@ -117,7 +117,7 @@ func (f *fakeBridges) Logout(ctx context.Context, network string, loginID networ
 }
 
 func (f *fakeBridges) EnableNetwork(_ context.Context, network string) error {
-	if network != "mattermost" {
+	if network != "signal" {
 		return fmt.Errorf("%w: %s", csapi.ErrUnknownNetwork, network)
 	}
 	f.lock.Lock()
@@ -672,7 +672,7 @@ func TestEnableNetwork(t *testing.T) {
 		_, err := e.cli.MakeRequest(ctx, "POST", url, struct{}{}, nil)
 		return err
 	}
-	if err := enable("mattermost"); err != nil {
+	if err := enable("signal"); err != nil {
 		t.Fatal(err)
 	}
 	if err := enable("nope"); !errors.Is(err, mautrix.MNotFound) {
@@ -680,7 +680,7 @@ func TestEnableNetwork(t *testing.T) {
 	}
 	e.bridges.lock.Lock()
 	defer e.bridges.lock.Unlock()
-	if len(e.bridges.enabled) != 1 || e.bridges.enabled[0] != "mattermost" {
+	if len(e.bridges.enabled) != 1 || e.bridges.enabled[0] != "signal" {
 		t.Errorf("enabled %v", e.bridges.enabled)
 	}
 }
