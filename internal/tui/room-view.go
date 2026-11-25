@@ -547,6 +547,10 @@ func (view *RoomView) OnKeyEvent(event mauview.KeyEvent) bool {
 	// upload it instead of pasting nothing. Text pastes flow through to the
 	// input area as before.
 	if event.Key() == tcell.KeyCtrlV {
+		if clipboardIsImage() {
+			go view.AttachClipboard()
+			return true
+		}
 		if text, _ := readClipboardText(); text != "" {
 			if raw, ok := stickerFromToken(text); ok {
 				view.AttachSticker(raw)
@@ -594,6 +598,10 @@ func (view *RoomView) OnKeyEvent(event mauview.KeyEvent) bool {
 
 func (view *RoomView) OnPasteEvent(event mauview.PasteEvent) bool {
 	// A copied sticker's token becomes a sticker chip.
+	if clipboardIsImage() {
+		go view.AttachClipboard()
+		return true
+	}
 	if raw, ok := stickerFromToken(event.Text()); ok {
 		view.AttachSticker(raw)
 		return true
@@ -1302,4 +1310,14 @@ func validInputText(input *mauview.InputArea) {
 	if text := input.GetText(); !utf8.ValidString(text) {
 		input.SetText(strings.ToValidUTF8(text, "\uFFFD"))
 	}
+}
+
+// clipboardIsImage: the clipboard has a PNG and no real text (an image's bytes read as text are mostly �).
+func clipboardIsImage() bool {
+	data, err := readClipboard("image/png")
+	if err != nil || len(data) == 0 {
+		return false
+	}
+	text, _ := readClipboardText()
+	return strings.TrimSpace(text) == "" || strings.Contains(text, "\uFFFD")
 }
