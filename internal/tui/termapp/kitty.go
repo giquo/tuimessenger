@@ -105,10 +105,54 @@ func translate(in []byte) (out, pending []byte) {
 				continue
 			}
 		}
+		if j < len(in) && j > i+2 {
+			if b, ok := functionalReportBytes(string(in[i+2:j]), in[j]); ok {
+				out = append(out, b...)
+				i = j + 1
+				continue
+			}
+		}
 		out = append(out, in[i])
 		i++
 	}
 	return out, nil
+}
+
+// functionalReportBytes normalizes Kitty's CSI 1;modifiers KEY form to the
+// legacy sequences in terminfo. Disambiguate-escape-codes mode uses this form
+// even for an unmodified cursor key, for example CSI 1;1A for Up, while tcell
+// expects CSI A.
+func functionalReportBytes(params string, final byte) ([]byte, bool) {
+	switch final {
+	case 'A', 'B', 'C', 'D', 'H', 'F', '~':
+	default:
+		return nil, false
+	}
+	fields := strings.Split(params, ";")
+	if len(fields) < 2 {
+		return nil, false
+	}
+	first := strings.SplitN(fields[0], ":", 2)[0]
+	if first == "" {
+		return nil, false
+	}
+	if _, err := strconv.Atoi(first); err != nil {
+		return nil, false
+	}
+	modField := strings.SplitN(fields[1], ":", 2)
+	mods, err := strconv.Atoi(modField[0])
+	if err != nil || mods < 1 {
+		return nil, false
+	}
+	if len(modField) == 2 && modField[1] == "3" {
+		return nil, true
+	}
+	kittyMods := mods - 1
+	kittyMods &^= modCapsLock | modNumLock
+	if kittyMods&(modSuper|modHyper|modMeta) != 0 {
+		return nil, true
+	}
+	return legacySpecialKey(first, final, kittyMods), true
 }
 
 // reportBytes is what a report "key[:alternates];mods[:event][;text]" stands for in legacy encoding; nil drops it.
@@ -151,6 +195,17 @@ func legacyKey(key rune, mods int) ([]byte, bool) {
 	shift, alt, ctrl := mods&modShift != 0, mods&modAlt != 0, mods&modCtrl != 0
 	var b []byte
 	switch {
+	case key >= 57348 && key <= 57357: // Kitty's functional keys: Insert, Delete, Left, Right, Up, Down, PageUp, PageDown, Home, End
+		keys := [...]struct {
+			number string
+			final  byte
+		}{
+			{"2", '~'}, {"3", '~'}, // Insert, Delete.
+			{"1", 'D'}, {"1", 'C'}, {"1", 'A'}, {"1", 'B'}, // Left, Right, Up, Down.
+			{"5", '~'}, {"6", '~'}, {"1", 'H'}, {"1", 'F'}, // PageUp, PageDown, Home, End.
+		}
+		k := keys[key-57348]
+		return legacySpecialKey(k.number, k.final, mods), true
 	case key == 27:
 		b = []byte{0x1b}
 	case key == 13 || key == 57414:
@@ -187,6 +242,22 @@ func legacyKey(key rune, mods int) ([]byte, bool) {
 		b = append([]byte{0x1b}, b...)
 	}
 	return b, true
+}
+
+// legacySpecialKey encodes a cursor or navigation key in a form terminfo and
+// tcell understand. With no modifiers, cursor keys omit the redundant 1;1
+// parameter that Kitty uses.
+func legacySpecialKey(number string, final byte, mods int) []byte {
+	var sequence string
+	switch {
+	case mods == 0 && number == "1" && final != '~':
+		sequence = string(final)
+	case mods == 0:
+		sequence = number + string(final)
+	default:
+		sequence = number + ";" + strconv.Itoa(mods+1) + string(final)
+	}
+	return append([]byte("\x1b["), sequence...)
 }
 
 // ctrlByte is Ctrl plus a key, as xterm sends it, except Ctrl+m and Ctrl+; get their stand-ins.
