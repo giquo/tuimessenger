@@ -3,6 +3,7 @@ package tui
 import (
 	"context"
 	"net/http"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -24,14 +25,22 @@ type fakeNetworks struct {
 	cancelled []string
 	loggedOut []string
 	keys      string
+	enabled   []string
 }
 
 func (f *fakeNetworks) Networks(context.Context) ([]client.Network, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	signal := client.Network{Name: "signal", Setup: client.SetupTurnOn}
+	if slices.Contains(f.enabled, "signal") {
+		signal = client.Network{Name: "signal", Running: true, Flows: []bridgev2.LoginFlow{{ID: "qr", Name: "QR"}}}
+	}
 	return []client.Network{
 		{Name: "whatsapp", Running: true, Flows: []bridgev2.LoginFlow{{ID: "qr", Name: "QR"}, {ID: "phone", Name: "Pairing code"}}},
 		{Name: "telegram", Setup: client.SetupTelegramKeys},
 		{Name: "slack", Running: true, State: "CONNECTED", Flows: []bridgev2.LoginFlow{{ID: "email", Name: "Email"}},
 			Logins: []client.NetworkLogin{{ID: "T1-U1", Name: "Acme - me@acme.test", State: "CONNECTED"}}},
+		signal,
 	}, nil
 }
 func (f *fakeNetworks) SetNetworkSetting(context.Context, string, string, bool) error { return nil }
@@ -60,6 +69,13 @@ func (f *fakeNetworks) LogoutNetwork(_ context.Context, network, id string) erro
 	f.loggedOut = append(f.loggedOut, network+"/"+id)
 	return nil
 }
+func (f *fakeNetworks) EnableNetwork(_ context.Context, network string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.enabled = append(f.enabled, network)
+	return nil
+}
+
 func (f *fakeNetworks) SetTelegramKeys(_ context.Context, id int, hash string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -95,7 +111,7 @@ func runePress(r rune) *tcell.EventKey     { return tcell.NewEventKey(tcell.KeyR
 func TestNetworkStatus(t *testing.T) {
 	api := &fakeNetworks{}
 	networks, _ := api.Networks(context.Background())
-	for i, want := range []string{"not logged in", "needs your API keys", "Acme - me@acme.test"} {
+	for i, want := range []string{"not logged in", "needs your API keys", "Acme - me@acme.test", "off · Enter to turn on"} {
 		if got, _ := networkStatus(networks[i]); got != want {
 			t.Errorf("%s: %q, want %q", networks[i].Name, got, want)
 		}
@@ -120,7 +136,7 @@ func TestNetworksLoginFlow(t *testing.T) {
 		func() (*client.LoginStep, error) { <-release; return done, nil }, // the QR scan
 	}}
 	p := newTestPanel(api)
-	if p.state != netList || len(p.networks) != 3 {
+	if p.state != netList || len(p.networks) != 4 {
 		t.Fatalf("list: state %v, %d networks", p.state, len(p.networks))
 	}
 
@@ -264,5 +280,23 @@ func TestCookieLoginWithoutBrowser(t *testing.T) {
 	}
 	if len(p.fields) != 1 || !strings.Contains(p.status, url) || !strings.Contains(p.status, "instagram.com") {
 		t.Errorf("want the paste field and help with the page and cookie domain: %d fields, status %q", len(p.fields), p.status)
+	}
+}
+
+// A network that's off is turned on from the list, then its login starts right away.
+func TestNetworksTurnOn(t *testing.T) {
+	api := &fakeNetworks{}
+	p := newTestPanel(api)
+	p.mu.Lock()
+	p.selected = 3
+	p.mu.Unlock()
+	p.OnKeyEvent(keyPress(tcell.KeyEnter))
+	eventually(t, "the Signal login to start", func(p *NetworksPanel) bool {
+		return p.state == netStep && p.network.Name == "signal"
+	}, p)
+	api.mu.Lock()
+	defer api.mu.Unlock()
+	if !slices.Equal(api.enabled, []string{"signal"}) {
+		t.Errorf("enabled %v", api.enabled)
 	}
 }

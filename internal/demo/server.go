@@ -190,6 +190,7 @@ func (f *fakeNetworks) FetchMedia(context.Context, string, map[string]string) (*
 }
 func (f *fakeNetworks) SetNetworkSetting(context.Context, string, string, bool) error { return nil }
 func (f *fakeNetworks) SetTelegramKeys(context.Context, int, string) error            { return nil }
+func (f *fakeNetworks) EnableNetwork(context.Context, string) error                   { return nil }
 func (f *fakeNetworks) CancelLogin(context.Context, string) error                     { return nil }
 
 func (f *fakeNetworks) Networks(context.Context) []csapi.Network {

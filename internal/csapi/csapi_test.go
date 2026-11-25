@@ -52,6 +52,7 @@ type fakeBridges struct {
 	cancelled     []string
 	loggedOut     []string
 	telegramKeys  string
+	enabled       []string
 }
 
 func (f *fakeBridges) Queue(ctx context.Context, evt *event.Event) error {
@@ -112,6 +113,16 @@ func (f *fakeBridges) Logout(ctx context.Context, network string, loginID networ
 	f.lock.Lock()
 	defer f.lock.Unlock()
 	f.loggedOut = append(f.loggedOut, network+"/"+string(loginID))
+	return nil
+}
+
+func (f *fakeBridges) EnableNetwork(_ context.Context, network string) error {
+	if network != "signal" {
+		return fmt.Errorf("%w: %s", csapi.ErrUnknownNetwork, network)
+	}
+	f.lock.Lock()
+	defer f.lock.Unlock()
+	f.enabled = append(f.enabled, network)
 	return nil
 }
 
@@ -650,6 +661,27 @@ func TestNetworkSettings(t *testing.T) {
 	}
 	if err := set("slack", map[string]bool{"nope": true}); !errors.Is(err, mautrix.MNotFound) {
 		t.Errorf("unknown setting: want M_NOT_FOUND, got %v", err)
+	}
+}
+
+func TestEnableNetwork(t *testing.T) {
+	e := setup(t)
+	ctx := context.Background()
+	enable := func(network string) error {
+		url := e.cli.BuildURL(mautrix.BaseURLPath{"_matrix", "client", "unstable", "com.tuimessenger", "networks", network, "enable"})
+		_, err := e.cli.MakeRequest(ctx, "POST", url, struct{}{}, nil)
+		return err
+	}
+	if err := enable("signal"); err != nil {
+		t.Fatal(err)
+	}
+	if err := enable("nope"); !errors.Is(err, mautrix.MNotFound) {
+		t.Errorf("unknown network: want M_NOT_FOUND, got %v", err)
+	}
+	e.bridges.lock.Lock()
+	defer e.bridges.lock.Unlock()
+	if len(e.bridges.enabled) != 1 || e.bridges.enabled[0] != "signal" {
+		t.Errorf("enabled %v", e.bridges.enabled)
 	}
 }
 

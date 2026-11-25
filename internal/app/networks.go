@@ -2,23 +2,27 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"slices"
+	"time"
 
 	"maunium.net/go/mautrix/bridgev2"
 
+	"github.com/whyyor/tuimessenger/internal/bridges"
 	"github.com/whyyor/tuimessenger/internal/config"
 	"github.com/whyyor/tuimessenger/internal/csapi"
 )
 
-// Networks lists the running networks with their accounts, login flows and settings, plus Telegram when it's wanted
-// but can't run yet because its app keys are missing.
+// Networks lists the running networks with their accounts, login flows and settings, then the ones that aren't
+// running: Setup says how to start them (turn on, or Telegram's app keys first).
 func (a *App) Networks(ctx context.Context) []csapi.Network {
 	a.settingsLock.Lock()
 	defer a.settingsLock.Unlock()
-	networks := make([]csapi.Network, 0, len(a.bridges))
-	for _, br := range a.bridges {
+	running := a.allBridges()
+	networks := make([]csapi.Network, 0, len(running))
+	for _, br := range running {
 		n := csapi.Network{Name: string(br.ID), Settings: map[string]bool{}, Running: true, Flows: offeredFlows(string(br.ID), br.Network.GetLoginFlows())}
 		for _, login := range br.GetAllCachedUserLogins() {
 			state := login.BridgeState.GetPrev()
@@ -32,10 +36,53 @@ func (a *App) Networks(ctx context.Context) []csapi.Network {
 		}
 		networks = append(networks, n)
 	}
-	if a.opts.OfferTelegramSetup && a.Bridge("telegram") == nil {
-		networks = append(networks, csapi.Network{Name: "telegram", Settings: map[string]bool{}, Setup: csapi.SetupTelegramKeys})
+	// The other compiled-in networks can be turned on from the client (EnableNetwork).
+	for _, name := range bridges.Available() {
+		if a.Bridge(name) != nil || name == "dummy" {
+			continue
+		}
+		setup := csapi.SetupTurnOn
+		if name == "telegram" && !a.opts.Config.HasTelegramKeys() {
+			setup = csapi.SetupTelegramKeys
+		}
+		networks = append(networks, csapi.Network{Name: name, Settings: map[string]bool{}, Setup: setup})
 	}
 	return networks
+}
+
+// EnableNetwork turns a network on while everything runs: it's started, then added to networks: in config.yaml so it
+// starts again next time. Turning on a running network does nothing.
+func (a *App) EnableNetwork(ctx context.Context, name string) error {
+	a.enableLock.Lock()
+	defer a.enableLock.Unlock()
+	if a.Bridge(name) != nil {
+		return nil
+	}
+	if !slices.Contains(bridges.Available(), name) {
+		return fmt.Errorf("%w: %s", csapi.ErrUnknownNetwork, name)
+	}
+	if name == "telegram" && !a.opts.Config.HasTelegramKeys() {
+		return errors.New("telegram needs its app keys first")
+	}
+	// Starting can take a few seconds (database setup); a client that stops waiting mustn't cut it off halfway.
+	ctx = context.WithoutCancel(ctx)
+	nb, err := a.newBridge(name)
+	if err != nil {
+		return err
+	}
+	if err = a.startBridge(ctx, nb.br, nb.afterStart); err != nil {
+		nb.br.StopWithTimeout(5 * time.Second)
+		_ = nb.db.Close()
+		return err
+	}
+	a.publish(nb) // only now: until it has started, nothing else may touch its database
+	// Saved only once it runs: a network in config.yaml that can't start would stop the next start altogether.
+	wanted := a.opts.Config.WithNetwork(name)
+	if err = config.SetStrings(filepath.Join(a.opts.DataDir, "config.yaml"), "", "networks", wanted); err != nil {
+		return fmt.Errorf("%s is on, but couldn't be saved for next time: %w", name, err)
+	}
+	a.opts.Config.Networks = wanted
+	return nil
 }
 
 // SetTelegramKeys saves Telegram's app keys to config.yaml; the Telegram bridge reads them when the backend starts.

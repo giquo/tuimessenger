@@ -138,6 +138,8 @@ func networkStatus(n client.Network) (text string, ok bool) {
 	switch {
 	case n.Setup == client.SetupTelegramKeys:
 		return "needs your API keys", false
+	case n.Setup == client.SetupTurnOn: // before !Running, which is also true for it
+		return "off · Enter to turn on", false
 	case !n.Running:
 		return "not running", false
 	case len(n.Logins) == 0:
@@ -214,6 +216,9 @@ func (p *NetworksPanel) chooseLocked() {
 				{id: "api_hash", label: "api_hash", input: newSetupInput("", "32 letters and digits", false)},
 			}
 			p.fields[0].input.Focus()
+		case p.network.Setup == client.SetupTurnOn:
+			p.busy, p.status = true, "Turning on "+networkName(p.network.Name)+"…"
+			go p.enableNetwork(p.network.Name)
 		case !p.network.Running:
 			p.errText = networkName(p.network.Name) + " isn't running on the backend"
 		case len(p.network.Logins) > 0:
@@ -453,6 +458,33 @@ func (p *NetworksPanel) submitLocked() {
 		resp, err := p.api.SubmitLogin(ctx, loginID, step, values)
 		p.handleStep(gen, resp, err)
 	}()
+}
+
+// enableNetwork starts a network on the backend, then goes straight to logging in to it.
+func (p *NetworksPanel) enableNetwork(name string) {
+	defer debug.Recover()
+	ctx, cancel := context.WithTimeout(context.Background(), netRequestTimeout)
+	err := p.api.EnableNetwork(ctx, name)
+	cancel()
+	if err != nil {
+		p.mu.Lock()
+		p.busy, p.status, p.errText = false, "", "Couldn't turn on "+networkName(name)+": "+apiErrorText(err)
+		p.mu.Unlock()
+		toasts.Show(toastError, "Couldn't turn on "+networkName(name)+": "+apiErrorText(err))
+		p.render()
+		return
+	}
+	toasts.Show(toastSuccess, networkName(name)+" is on")
+	p.reload(name)
+	p.mu.Lock()
+	if !p.closed && p.state == netList && p.selected < len(p.networks) {
+		if n := p.networks[p.selected]; n.Name == name && n.Running && len(n.Logins) == 0 {
+			p.network = n
+			p.startFlowsLocked()
+		}
+	}
+	p.mu.Unlock()
+	p.render()
 }
 
 func (p *NetworksPanel) saveTelegramKeys(rawID, hash string) {
