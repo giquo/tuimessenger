@@ -547,18 +547,22 @@ func (view *RoomView) OnKeyEvent(event mauview.KeyEvent) bool {
 	// upload it instead of pasting nothing. Text pastes flow through to the
 	// input area as before.
 	if event.Key() == tcell.KeyCtrlV {
-		if text, _ := readClipboardText(); text != "" {
-			if raw, ok := stickerFromToken(text); ok {
-				view.AttachSticker(raw)
-				return true
-			}
+		text, _ := readClipboardText()
+		// An image's bytes read as text (Wayland: wl-paste gives the PNG when there's no text) mean: attach it.
+		if pastedBinary(text) {
+			go view.AttachClipboard()
+			return true
+		}
+		if raw, ok := stickerFromToken(text); ok {
+			view.AttachSticker(raw)
+			return true
 		}
 		// Files copied in Finder come first: their name is on the clipboard as text too.
 		if files := clipboardFiles(); len(files) > 0 {
 			view.AttachFiles(files...)
 			return true
 		}
-		if text, _ := readClipboardText(); strings.TrimSpace(text) == "" {
+		if strings.TrimSpace(text) == "" {
 			go view.AttachClipboard()
 			return true
 		}
@@ -593,6 +597,12 @@ func (view *RoomView) OnKeyEvent(event mauview.KeyEvent) bool {
 }
 
 func (view *RoomView) OnPasteEvent(event mauview.PasteEvent) bool {
+	// A screenshot pasted on Wayland arrives as its raw bytes: attach the clipboard's image instead. Decided from
+	// what was pasted, not the clipboard, so a middle-click paste (the primary selection) stays text.
+	if pastedBinary(event.Text()) {
+		go view.AttachClipboard()
+		return true
+	}
 	// A copied sticker's token becomes a sticker chip.
 	if raw, ok := stickerFromToken(event.Text()); ok {
 		view.AttachSticker(raw)
@@ -1302,4 +1312,20 @@ func validInputText(input *mauview.InputArea) {
 	if text := input.GetText(); !utf8.ValidString(text) {
 		input.SetText(strings.ToValidUTF8(text, "\uFFFD"))
 	}
+}
+
+// pastedBinary reports whether pasted text is really a file's bytes: the PNG signature (raw or after a UTF-8
+// clean-up), a NUL byte, or at least a quarter of it not valid UTF-8. Real text, even with a stray �, isn't.
+func pastedBinary(text string) bool {
+	if strings.HasPrefix(text, "\x89PNG") || strings.HasPrefix(text, "\uFFFDPNG") || strings.ContainsRune(text, 0) {
+		return true
+	}
+	runes, bad := 0, 0
+	for _, r := range text { // each invalid byte is its own RuneError here; ToValidUTF8 would merge runs of them
+		runes++
+		if r == utf8.RuneError {
+			bad++
+		}
+	}
+	return runes >= 16 && bad*4 >= runes
 }
