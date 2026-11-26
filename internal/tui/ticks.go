@@ -18,12 +18,11 @@ import (
 	"github.com/whyyor/tuimessenger/internal/tui/messages"
 )
 
-// ColorReadTick is a saturated, bright blue and ColorTick a dark grey, far
-// apart in both hue and brightness so sent and seen ticks are told apart
-// without relying on colour vision alone.
+// ColorReadTick (seen) is a saturated, bright blue and ColorTick (sent, delivered, pending) follows dim_text, so
+// they differ in brightness as well as hue. Both are colour keys (tick_read, tick): set your own for more contrast.
 var (
 	ColorReadTick = tcell.NewHexColor(0x3a9bff)
-	ColorTick     = tcell.NewHexColor(0x5a5a64)
+	ColorTick     = tcell.NewHexColor(0x8a8a94)
 )
 
 const (
