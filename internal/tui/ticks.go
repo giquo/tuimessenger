@@ -18,8 +18,13 @@ import (
 	"github.com/whyyor/tuimessenger/internal/tui/messages"
 )
 
-// ColorReadTick is WhatsApp's read-receipt blue.
-var ColorReadTick = tcell.NewHexColor(0x53bdeb)
+// ColorReadTick is a saturated, bright blue and ColorTick a dark grey, far
+// apart in both hue and brightness so sent and seen ticks are told apart
+// without relying on colour vision alone.
+var (
+	ColorReadTick = tcell.NewHexColor(0x3a9bff)
+	ColorTick     = tcell.NewHexColor(0x5a5a64)
+)
 
 const (
 	tickWidth = 2
@@ -162,15 +167,15 @@ func (view *MessageView) tickFor(msg *messages.UIMessage, lay *bubbleLayout) (st
 	case messages.SendFailed(msg.Event):
 		return "!", tcell.ColorRed
 	case msg.Pending:
-		return "◌", ColorStatusText
+		return "◌", ColorTick
 	case lay.read:
 		return "✓✓", ColorReadTick
 	}
 	switch view.deliveryState(msg) {
 	case deliveryDelivered:
-		return "✓✓", ColorStatusText
+		return "✓✓", ColorTick
 	case deliveryFailed:
 		return "!", tcell.ColorRed
 	}
-	return "✓", ColorStatusText
+	return "✓", ColorTick
 }
