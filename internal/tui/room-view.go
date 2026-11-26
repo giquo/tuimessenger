@@ -395,13 +395,12 @@ func (view *RoomView) Draw(screen mauview.Screen) {
 	// The composer is a padded box: a blank row above and below the input,
 	// with an accent line running down the left of the whole box.
 	composerHeight := inputHeight + 2
-	// Panels: the composer and the member list are panels with a title row;
-	// the chat stays on the screen's background, a blank row between it and
-	// the composer.
+	// Panels: the composer and the member list are panels, the member list
+	// with a title row; the chat stays on the screen's background, a blank row
+	// between it and the composer.
 	panels := view.config.Preferences.EnablePanels
 	panelGap := boolInt(panels)
 	titleRow := boolInt(panels)
-	composerHeight += titleRow
 	contentHeight := height - composerHeight - topicBarHeight - StatusBarHeight - panelGap
 	hideUserList := view.shouldHideUserList()
 	contentWidth := width - StaticHorizontalSpace
@@ -422,8 +421,8 @@ func (view *RoomView) Draw(screen mauview.Screen) {
 	view.inputScreen.OffsetX = inputOffsetX
 	view.inputScreen.Width = width - inputOffsetX
 	composerTop := view.statusScreen.YEnd() + panelGap
-	// Below the title: the padding row (search, attachments), then the input.
-	padTop := composerTop + titleRow
+	// The padding row (search, attachments), then the input.
+	padTop := composerTop
 	view.inputScreen.OffsetY = padTop + 1
 	view.inputScreen.Height = inputHeight
 	// The old border column stays as blank spacing before the member list.
@@ -444,8 +443,8 @@ func (view *RoomView) Draw(screen mauview.Screen) {
 			paintBackground(screen, ulPanelX, 0, width-ulPanelX, view.statusScreen.YEnd(), ColorPane)
 			drawPanelTitle(screen, ulPanelX+1, topicBarHeight, width-ulPanelX-1, "Members", ColorStatusText)
 		}
+		// No title on the composer: its placeholder already says what it is.
 		paintBackground(screen, 0, composerTop, width, composerHeight, ColorPane)
-		drawPanelTitle(screen, inputOffsetX, composerTop, width-inputOffsetX-1, "Message", ColorComposerBar)
 	}
 
 	// Draw everything
